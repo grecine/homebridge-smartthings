@@ -82,11 +82,67 @@ export class TemperatureService extends SensorService {
       }
 
       if (tempValue === null || tempValue === undefined || tempUnit === null || tempUnit === undefined) {
-        this.log.warn(`${this.name} (${componentId}) returned bad value - value: ${tempValue}, unit: ${tempUnit}`);
-        if (this.platform.config.AdvancedDebugging) {
-          this.log.debug(`Full status for ${this.name} (${componentId}): ${JSON.stringify(status, null, 2)}`);
+        // Smart Fallback for specific refrigerator components that might not always report data (e.g. FlexZone/CVRoom)
+        if (this.platform.config.ExposeMultiZoneRefrigerator && (componentId === 'cvroom' || componentId === 'onedoor')) {
+          this.log.debug(`No specific temperature for ${componentId}, falling back to reasonable defaults to prevent errors.`);
+
+          // For CV Room (FlexZone), if it's in freezer mode (often the case), use freezer temp. Otherwise main fridge.
+          // We can try to guess based on the 'custom.fridgeMode' if available, but for now, let's just pick a safe existing value
+          // so the tile isn't 'No Response'.
+          const freezerCmp = this.multiServiceAccessory.components.find(c => c.componentId === 'freezer');
+          const mainCmp = this.multiServiceAccessory.components.find(c => c.componentId === 'main');
+
+          // Try to borrow from freezer first for CV room, as it's often used as such
+          const freezerStatus = freezerCmp?.status as any;
+          const mainStatus = mainCmp?.status as any;
+
+          // Helper to get temp from component (either standard or OCF)
+          const getTemp = (cmp: any, status: any, id: string): { value: number; unit: string } | null => {
+            if (status?.temperatureMeasurement?.temperature?.value) {
+              return {
+                value: status.temperatureMeasurement.temperature.value,
+                unit: status.temperatureMeasurement.temperature.unit,
+              };
+            }
+            // Try OCF extraction for the source component
+            if (status?.samsungce?.driverState?.driverState?.value) {
+              const ocfVal = this.extractTemperatureFromOcfDriverState(status.samsungce.driverState.driverState.value, id);
+              if (ocfVal !== null) {
+                return { value: ocfVal, unit: 'F' };
+              }
+            }
+            return null;
+          };
+
+          if (componentId === 'cvroom') {
+            const freezerTemp = getTemp(freezerCmp, freezerStatus, 'freezer');
+            if (freezerTemp) {
+              tempValue = freezerTemp.value;
+              tempUnit = freezerTemp.unit;
+              this.log.debug(`Using Freezer temperature for ${componentId} fallback: ${tempValue}${tempUnit}`);
+            }
+          }
+
+          if (!tempValue) {
+            const mainTemp = getTemp(mainCmp, mainStatus, 'main');
+            if (mainTemp) {
+              tempValue = mainTemp.value;
+              tempUnit = mainTemp.unit;
+              this.log.debug(`Using Main Refrigerator temperature for ${componentId} fallback: ${tempValue}${tempUnit}`);
+            }
+          }
         }
-        throw ('Bad Value');
+
+        if (tempValue === null || tempValue === undefined) {
+          this.log.debug(`${this.name} (${componentId}) has no temperature data (standard or OCF). Returning failure value.`);
+          if (this.platform.config.AdvancedDebugging) {
+            this.log.debug(`Full status for ${this.name} (${componentId}): ${JSON.stringify(status, null, 2)}`);
+          }
+          // Return Absolute Zero (-273.15°C) to indicate failure without spamming error logs.
+          // This will show as ~460°F or -273°C in HomeKit, which is "obviously broken".
+          this.unit = 'C';
+          return -273.15;
+        }
       }
 
       if (tempUnit === 'F') {
