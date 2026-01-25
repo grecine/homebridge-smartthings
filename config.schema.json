@@ -106,7 +106,6 @@
         "default": true,
         "description": "Creates a separate volume slider accessory for TVs (exposed as a lightbulb) because HomeKit's native TV interface doesn't show volume controls directly. Enable this if you can't see volume controls in the Home app."
       },
-
       "PollWindowShadesSeconds": {
         "title": "Poll Window Shades (zero = don't poll)",
         "type": "integer",
@@ -171,7 +170,11 @@
           "description": "Exact device name as it appears in SmartThings (case-insensitive)"
         },
         "examples": [
-          ["Living Room Light", "Kitchen Switch", "Bedroom Fan"]
+          [
+            "Living Room Light",
+            "Kitchen Switch",
+            "Bedroom Fan"
+          ]
         ]
       },
       "ShowOnlyDevices": {
@@ -184,8 +187,30 @@
           "description": "Exact device name as it appears in SmartThings (case-insensitive)"
         },
         "examples": [
-          ["Living Room Light", "Kitchen Switch", "Bedroom Fan"]
+          [
+            "Living Room Light",
+            "Kitchen Switch",
+            "Bedroom Fan"
+          ]
         ]
+      },
+      "KeepDisconnectedDevices": {
+        "title": "Keep Disconnected Devices",
+        "type": "boolean",
+        "default": false,
+        "description": "Prevents devices from being removed from HomeKit when they momentarily go offline or return invalid data. Currently supported for: Sensors (Temperature, Humidity, etc). Useful for devices with unstable connections."
+      },
+      "ExposeMultiZoneRefrigerator": {
+        "title": "Expose Multi-Zone Refrigerator",
+        "type": "boolean",
+        "default": false,
+        "description": "For Samsung Family Hub Refrigerators: Exposes separate temperature sensors for Fridge, Freezer, and FlexZone compartments instead of just one main sensor."
+      },
+      "AdvancedDebugging": {
+        "title": "Enable Advanced Debugging",
+        "type": "boolean",
+        "default": false,
+        "description": "Enables verbose logging for deep troubleshooting of API responses and device capabilities."
       }
     }
   },

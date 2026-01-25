@@ -227,6 +227,26 @@ export class MultiServiceAccessory {
     }
   }
 
+  /**
+   * Check if a component is disabled according to SmartThings device configuration
+   * @param componentId - The component ID to check
+   * @returns true if the component is disabled, false otherwise
+   */
+  public isComponentDisabled(componentId: string): boolean {
+    // Check the main component's status for disabledComponents list
+    const mainComponent = this.components.find(c => c.componentId === 'main');
+    if (mainComponent && mainComponent.status && Object.keys(mainComponent.status).length > 0) {
+      const status = mainComponent.status as any;
+      if (status.custom?.disabledComponents?.disabledComponents?.value) {
+        const disabledComponents = status.custom.disabledComponents.disabledComponents.value;
+        if (Array.isArray(disabledComponents) && disabledComponents.includes(componentId)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   private registerServiceIfMatchesCapabilities(
     componentId: string,
     component: any,
@@ -240,6 +260,12 @@ export class MultiServiceAccessory {
     if (!capabilities.every(e => capabilitiesToCover.includes(e))) {
       // this.log.debug(`Ignoring ${serviceConstructor.name}`);
       return capabilitiesToCover;
+    }
+
+    // Special handling for temperature sensors on disabled components
+    if (serviceConstructor === TemperatureService && this.isComponentDisabled(componentId)) {
+      this.log.info(`⚠️ Skipping temperature sensor for ${this.name} component "${componentId}" - component is disabled in SmartThings`);
+      return capabilitiesToCover; // Don't create the service, but don't remove the capability from the list
     }
 
     const allCapabilities = capabilities.concat(optionalCapabilities.filter(e => capabilitiesToCover.includes(e)));
@@ -299,47 +325,47 @@ export class MultiServiceAccessory {
           }, 100);
         }
 
-                     // Remove TV capabilities from the list to avoid duplicate services
-             capabilitiesToCover = capabilitiesToCover.filter(cap => !tvCapabilities.includes(cap));
+        // Remove TV capabilities from the list to avoid duplicate services
+        capabilitiesToCover = capabilitiesToCover.filter(cap => !tvCapabilities.includes(cap));
 
-             // If configured to remove legacy switch, remove the 'switch' capability
-             if (removeLegacySwitch && tvCapabilities.includes('switch')) {
-               this.log.debug(`Removing legacy switch service for TV: ${this.name}`);
-               // 'switch' capability is already removed from capabilitiesToCover above
-             } else if (tvCapabilities.includes('switch')) {
-               // Keep the switch capability for legacy compatibility
-               capabilitiesToCover.push('switch');
-               this.log.debug(`Keeping legacy switch service alongside Television service for: ${this.name}`);
-             }
+        // If configured to remove legacy switch, remove the 'switch' capability
+        if (removeLegacySwitch && tvCapabilities.includes('switch')) {
+          this.log.debug(`Removing legacy switch service for TV: ${this.name}`);
+          // 'switch' capability is already removed from capabilitiesToCover above
+        } else if (tvCapabilities.includes('switch')) {
+          // Keep the switch capability for legacy compatibility
+          capabilitiesToCover.push('switch');
+          this.log.debug(`Keeping legacy switch service alongside Television service for: ${this.name}`);
+        }
 
-             // Add volume slider as lightbulb service to the SAME TV accessory (same tile in HomeKit)
-             // CRITICAL: Only create for main TV component with volume capabilities
-             const registerVolumeSlider = this.platform.config.registerVolumeSlider === true;
-             if (registerVolumeSlider && componentId === 'main' && VolumeSliderService.supportsVolumeSlider(capabilities)) {
-               this.log.debug(`Creating volume slider service within TV accessory for main component: ${this.name}`);
-               const volumeSliderCapabilities = VolumeSliderService.getVolumeSliderCapabilities().filter(cap => capabilities.includes(cap));
+        // Add volume slider as lightbulb service to the SAME TV accessory (same tile in HomeKit)
+        // CRITICAL: Only create for main TV component with volume capabilities
+        const registerVolumeSlider = this.platform.config.registerVolumeSlider === true;
+        if (registerVolumeSlider && componentId === 'main' && VolumeSliderService.supportsVolumeSlider(capabilities)) {
+          this.log.debug(`Creating volume slider service within TV accessory for main component: ${this.name}`);
+          const volumeSliderCapabilities = VolumeSliderService.getVolumeSliderCapabilities().filter(cap => capabilities.includes(cap));
 
-               if (volumeSliderCapabilities.length > 0) {
-                 const volumeSliderService = new VolumeSliderService(
-                   this.platform,
-                   this.accessory,
-                   componentId, // 'main' component for TV
-                   volumeSliderCapabilities,
-                   this,
-                   this.name,
-                   component,
-                 );
-                 this.services.push(volumeSliderService);
+          if (volumeSliderCapabilities.length > 0) {
+            const volumeSliderService = new VolumeSliderService(
+              this.platform,
+              this.accessory,
+              componentId, // 'main' component for TV
+              volumeSliderCapabilities,
+              this,
+              this.name,
+              component,
+            );
+            this.services.push(volumeSliderService);
 
-                 // Remove volume capabilities from other services to avoid conflicts
-                 capabilitiesToCover = capabilitiesToCover.filter(cap => !volumeSliderCapabilities.includes(cap));
-                 this.log.info(`📱 Volume slider service added to ${this.name} TV tile - volume controls now visible in Home app`);
-               }
-             }
+            // Remove volume capabilities from other services to avoid conflicts
+            capabilitiesToCover = capabilitiesToCover.filter(cap => !volumeSliderCapabilities.includes(cap));
+            this.log.info(`📱 Volume slider service added to ${this.name} TV tile - volume controls now visible in Home app`);
+          }
+        }
 
 
-           }
-         }
+      }
+    }
 
     // Start with comboServices and remove used capabilities to avoid duplicated sensors.
     // For example, there is no need to expose a temperature sensor in case of a thermostat which already exposes that charateristic.

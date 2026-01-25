@@ -72,6 +72,11 @@ export class BaseService {
           if (!success) {
             resolve(false);
           } else {
+            // Update deviceStatus from the current component status
+            const component = this.multiServiceAccessory.components.find(c => c.componentId === this.componentId);
+            if (component && component.status) {
+              this.deviceStatus.status = component.status;
+            }
             resolve(true);
           }
         });
