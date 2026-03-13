@@ -1,6 +1,97 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.48] - Air Quality Sensor Fix
+
+### Fixed
+- **Air Quality always showing "Excellent"**: SmartThings `airQualitySensor.airQuality.value` returns an unreliable value (often 1 regardless of actual air conditions). Air quality is now derived from PM2.5 readings when `dustSensor` capability is available, using WHO-based thresholds: <=15 Excellent, <=35 Good, <=55 Fair, <=75 Inferior, >75 Poor. Falls back to SmartThings 1-5 scale when dustSensor is unavailable.
+- **Real-time air quality updates**: Incoming `dustSensor` `fineDustLevel` events now also update the `AirQuality` characteristic based on PM2.5 values, ensuring the air quality level stays accurate between polls.
+
+## [1.0.47] - Samsung Air Purifier Capability Fix
+
+### Fixed
+- **Air Purifier capability mismatch**: Samsung air purifiers report `airConditionerFanMode` (not `airPurifierFanMode`) for fan mode control. Updated the combo capability match and all command/status paths to use the correct SmartThings capability name. Previously, the air purifier would incorrectly appear as a plain switch in HomeKit.
+- **Fan mode command**: Changed from `setAirPurifierFanMode` to `setFanMode` to match the actual SmartThings API command for the `airConditionerFanMode` capability.
+- **Fan mode status path**: Fixed status read from `airConditionerFanMode.airConditionerFanMode.value` to `airConditionerFanMode.fanMode.value`.
+
+## [1.0.46] - Samsung Air Purifier Support
+
+### Added
+- **Air Purifier Service**: New `AirPurifierService` for Samsung air purifier devices, mapped to HomeKit's native `Service.AirPurifier`
+  - Power on/off via `switch` capability (Active + CurrentAirPurifierState)
+  - Fan mode control via `airConditionerFanMode` capability (Auto, Low, Medium, High, Sleep) mapped to TargetAirPurifierState and RotationSpeed
+  - Filter life monitoring via `custom.filterState` capability (FilterLifeLevel + FilterChangeIndication at <10%)
+- **Linked Air Quality Sensor**: Conditional `Service.AirQualitySensor` linked to the air purifier
+  - Air quality index derived from PM2.5 readings (WHO-based thresholds) with fallback to SmartThings `airQualitySensor` value
+  - PM2.5 density via `dustSensor` (`fineDustLevel`)
+  - PM10 density via `dustSensor` (`dustLevel`)
+  - VOC density via `odorSensor` (`odorLevel`)
+- **Linked Humidity Sensor**: Conditional `Service.HumiditySensor` linked to the air purifier via `relativeHumidityMeasurement` capability
+- **Real-time event handling**: Full `processEvent()` support for all air purifier capabilities via webhooks
+- **Polling**: Automatic polling for Active state and RotationSpeed
+
+## [1.0.45] - OAuth Wizard Popup Fix
+
+### Fixed
+- **OAuth Wizard popup blocked**: The SmartThings login popup in step 3 of the OAuth wizard was silently blocked by browsers for many users. The `window.open()` call happened after an `await`, which breaks the browser's user-gesture context and triggers popup blockers. The window is now opened synchronously before the async call to preserve the gesture chain.
+- **Popup fallback URL field**: Step 3 now always displays a copyable URL field with the authorization link, so users can manually open it if the popup is still blocked by stricter browser settings.
+
+## [1.0.44] - Samsung Frame TV, TV App Launcher & Washer Service
+
+### Added
+- **Samsung Frame TV Full Power Off**: Frame TVs now support true power off via a 3.5-second long-press of KEY_POWER sent over local WebSocket. The standard SmartThings `switch.off` command only puts Frame TVs into Art Mode — this bypasses that behavior entirely.
+- **Art Mode Switch**: A separate HomeKit switch to toggle Art Mode on and off for each configured Frame TV. Appears as its own tile in the Home app for easy access and automation.
+- **Local WebSocket Connection Manager** (`src/local/samsungWebSocket.ts`): Handles secure WebSocket connections to Samsung TVs on port 8002 (remote control) and port 8001 (Art Mode channel). Supports lazy connect-on-demand and automatic idle disconnect after 8 seconds.
+- **TV Authorization Token Flow**: First-time connections prompt an "Allow/Deny" popup on the TV. Once accepted, the token is saved automatically and reused for all future connections — no manual pairing code needed.
+- **Frame TV Configuration UI**: New "Samsung Frame TV Settings" section in the Homebridge UI to add/remove Frame TV devices with IP address, full power off toggle, and Art Mode toggle.
+- **Frame TV Auto-Detection**: The plugin automatically detects Frame TVs by checking the `artSupported` field from SmartThings device status. A helpful log message is shown during startup if a Frame TV is found but not yet configured, guiding users to add the TV's local IP address.
+- **`frameTvDevices` config field**: New array in `config.schema.json` for configuring Frame TV devices with `deviceName`, `ip`, `enableFullPowerOff`, `enableArtModeSwitch`, and optional `token` fields.
+- **TV App Shortcuts**: Launch Samsung TV apps (Netflix, YouTube, Disney+, etc.) directly from the HomeKit TV input picker. Apps appear as additional input sources (type APPLICATION) alongside HDMI inputs. Select which apps to enable from the "TV App Shortcuts" card in the Homebridge UI. Uses `custom.launchapp` capability — no apps enabled by default.
+- **TV App Shortcuts UI**: New "TV App Shortcuts" card in the Homebridge UI with a checkbox list of 18 predefined Samsung TV apps. Only selected apps appear in the HomeKit input picker.
+- **`tvApps` config field**: New array in `config.schema.json` for selecting TV app shortcuts by app ID (default: empty).
+- **Washer Service**: New service mapping `washerOperatingState` capability to a HomeKit Valve with Active, InUse, and RemainingDuration countdown for Samsung washers.
+- **README section**: Added documentation covering Frame TV auto-detection, configuration options, first-time pairing, troubleshooting, and how to recover from an accidental "Deny" on the TV popup.
+
+### Changed
+- **TelevisionService**: When a Frame TV is configured, power off is intercepted and routed through the local WebSocket instead of the SmartThings API. Power on continues to use the SmartThings API as normal. On WebSocket failure, falls back to SmartThings API with a warning log.
+- **MultiServiceAccessory**: Detects Frame TV devices by matching the SmartThings device name against `frameTvDevices` config entries (case-insensitive). Creates a shared `SamsungWebSocket` instance used by both the TV service and Art Mode switch.
+- **Platform**: Registers Art Mode accessories as separate platform accessories after device discovery, with UUIDs derived from `deviceId + '-artmode'` to ensure uniqueness.
+
+### Fixed
+- **Art Mode Accessory Registration**: Fixed incorrect `PLUGIN_NAME` (`homebridge-smartthings-ik` instead of `homebridge-smartthings-oauth`) which prevented the Art Mode switch from appearing in HomeKit.
+- **Art Mode Accessory Persistence**: Fixed a bug where the Art Mode accessory was unregistered and re-registered on every restart because its derived UUID didn't match any SmartThings device ID. Art Mode accessories are now excluded from the cleanup loop.
+
+### Security
+- **Dependency audit**: Fixed all 6 npm audit vulnerabilities (axios, form-data, glob, js-yaml, brace-expansion, diff) — 0 vulnerabilities remaining.
+
+### Dependencies
+- Added `ws` (^8.0.0) and `@types/ws` (^8.0.0) for local WebSocket communication with Samsung TVs.
+
+## [1.0.43] - Real-Time Subscription Manager UI
+### Added
+- **Capability Subscription Selector**: New UI card in Homebridge settings to manually choose which capabilities get real-time SmartThings subscriptions (max 20). Available for users with webhooks configured.
+  - Checkbox list of all discovered capabilities sorted by device count
+  - Counter badge showing selected / 20 limit
+  - "Clear All" and "Auto (by device count)" quick-select buttons
+  - "Save & Apply Subscriptions" flushes and recreates subscriptions immediately without restarting the plugin
+  - "Refresh List" to reload discovered capabilities
+- **`selectedCapabilities` config field**: Optional array in config.schema.json to persist manual capability selections across restarts. Leave empty for automatic prioritization (existing behavior).
+- **`available_capabilities.json`**: Plugin now writes discovered capabilities and device counts to Homebridge storage after device discovery, enabling the UI to display them.
+- **Server endpoints**: `/capabilities` (read discovered list) and `/resubscribe` (flush + create subscriptions via SmartThings API) added to the UI server.
+
+### Fixed
+- **Security (XSS)**: Replaced all `innerHTML` string concatenation in the capability selector with safe `createElement`/`textContent` DOM building
+- **Security (Input Validation)**: `/resubscribe` endpoint now validates capability names against the discovered list before sending to SmartThings API
+- **Reliability**: `writeAvailableCapabilities` now uses async `fs.promises.writeFile` with atomic temp+rename instead of blocking `writeFileSync`
+- **Error Handling**: Added JSON schema validation for `available_capabilities.json` and `smartthings_tokens.json` reads in server endpoints
+- **Error Handling**: Plugin now logs a clear warning and falls back to automatic prioritization when all user-selected capabilities are invalid
+- **UX**: "Save & Apply" button disables during the request to prevent duplicate flush+create cycles
+- **UX**: Improved error messages in capability list loading with actionable guidance
+
+## [1.0.42] - OAuth Wizard UI Fix
+### Fixed
+- **OAuth Wizard Flashing/Disappearing**: Fixed issue where the OAuth setup wizard would briefly flash and then disappear. This was caused by the `configChanged` event triggering `updateUi()` which would hide the wizard. Added state tracking to prevent the wizard from being closed when intentionally opened.
+
 ## [1.0.41] - Documentation Update
 ### Changed
 - Updated CHANGELOG.md with entries for versions 1.0.37-1.0.40

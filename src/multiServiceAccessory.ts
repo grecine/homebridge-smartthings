@@ -28,8 +28,11 @@ import { AirConditionerService } from './services/airConditionerService';
 import { ACLightingService } from './services/acLightingService';
 import { TelevisionService } from './services/televisionService';
 import { VolumeSliderService } from './services/volumeSliderService';
+import { WasherService } from './services/washerService';
+import { AirPurifierService } from './services/airPurifierService';
 import { Command } from './services/smartThingsCommand';
 import { CrashLoopManager, CrashErrorType } from './auth/CrashLoopManager';
+import { SamsungWebSocket } from './local/samsungWebSocket';
 // type DeviceStatus = {
 //   timestamp: number;
 //   //status: Record<string, unknown>;
@@ -98,6 +101,17 @@ export class MultiServiceAccessory {
       service: AirConditionerService,
     },
     {
+      capabilities: ['switch', 'airConditionerFanMode'],
+      optionalCapabilities: [
+        'custom.filterState',
+        'airQualitySensor',
+        'dustSensor',
+        'odorSensor',
+        'relativeHumidityMeasurement',
+      ],
+      service: AirPurifierService,
+    },
+    {
       capabilities: ['switch', 'fanSpeed', 'switchLevel'],
       service: FanSwitchLevelService,
     },
@@ -142,6 +156,11 @@ export class MultiServiceAccessory {
       capabilities: ['windowShade', 'switchLevel'],
       service: WindowCoveringService,
     },
+    {
+      capabilities: ['washerOperatingState'],
+      optionalCapabilities: ['washerMode', 'remoteControlStatus'],
+      service: WasherService,
+    },
   ];
 
   protected accessory: PlatformAccessory;
@@ -170,6 +189,10 @@ export class MultiServiceAccessory {
   // Add a field for CrashLoopManager
   private crashLoopManager: CrashLoopManager;
 
+  // Frame TV: optional local WebSocket for full power off and art mode
+  public samsungWebSocket: SamsungWebSocket | null = null;
+  public frameTvConfig: { enableFullPowerOff: boolean; enableArtModeSwitch: boolean } | null = null;
+
   get id() {
     return this.accessory.UUID;
   }
@@ -180,7 +203,7 @@ export class MultiServiceAccessory {
   ) {
     this.accessory = accessory;
     this.platform = platform;
-    this.name = accessory.context.device.label;
+    this.name = accessory.context.device.label || accessory.context.device.name || 'Unknown Device';
     this.log = platform.log;
     this.baseURL = platform.config.BaseURL;
     this.key = platform.config.AccessToken;
@@ -202,6 +225,30 @@ export class MultiServiceAccessory {
 
     // Use platform's axios instance to benefit from token refresh handling
     this.axInstance = platform.axInstance;
+
+    // Check if this device is a configured Frame TV
+    const frameTvDevices: Array<{ deviceName: string; ip: string; enableFullPowerOff?: boolean; enableArtModeSwitch?: boolean; token?: string }>
+      = platform.config.frameTvDevices || [];
+    const matchedFrameTv = frameTvDevices.find(
+      ftv => ftv.deviceName && ftv.deviceName.toLowerCase().trim() === this.name.toLowerCase().trim(),
+    );
+    if (matchedFrameTv) {
+      if (!matchedFrameTv.ip || matchedFrameTv.ip.trim() === '') {
+        this.log.warn(`Frame TV config for "${this.name}" is missing IP address — skipping WebSocket setup`);
+      } else {
+        this.log.info(`Frame TV detected: ${this.name} at ${matchedFrameTv.ip}`);
+        this.samsungWebSocket = new SamsungWebSocket(
+          matchedFrameTv.ip,
+          this.log,
+          this.api.user.storagePath(),
+          matchedFrameTv.token,
+        );
+        this.frameTvConfig = {
+          enableFullPowerOff: matchedFrameTv.enableFullPowerOff !== false, // default true
+          enableArtModeSwitch: matchedFrameTv.enableArtModeSwitch !== false, // default true
+        };
+      }
+    }
 
     // Initialize device health check
     this.checkDeviceHealth().catch(error => {
@@ -310,6 +357,11 @@ export class MultiServiceAccessory {
           this.name,
           component,
         );
+        // If this is a Frame TV, configure the WebSocket for power off
+        if (this.samsungWebSocket && this.frameTvConfig) {
+          serviceInstance.setFrameTvWebSocket(this.samsungWebSocket, this.frameTvConfig.enableFullPowerOff);
+        }
+
         this.services.push(serviceInstance);
 
         // Trigger input source registration if mediaInputSource capability is available
@@ -412,6 +464,12 @@ export class MultiServiceAccessory {
       return true;
     }
 
+    // Check combo capability map for capabilities only registered there
+    if (MultiServiceAccessory.comboCapabilityMap.some(entry =>
+      entry.capabilities.includes(capability))) {
+      return true;
+    }
+
     // Check if it's a TV-related capability
     if (TelevisionService.getTvCapabilities().includes(capability)) {
       return true;
@@ -421,8 +479,6 @@ export class MultiServiceAccessory {
     if (VolumeSliderService.getVolumeSliderCapabilities().includes(capability)) {
       return true;
     }
-
-
 
     return false;
   }
@@ -546,10 +602,6 @@ export class MultiServiceAccessory {
     chracteristic: WithUUID<new () => Characteristic>, targetStateCharacteristic?: WithUUID<new () => Characteristic>,
     getTargetState?: () => Promise<CharacteristicValue>): NodeJS.Timer | void {
 
-    if (this.platform.config.WebhookToken && this.platform.config.WebhookToken !== '') {
-      return;  // Don't poll if we have a webhook token
-    }
-
     if (pollSeconds > 0) {
       return setInterval(() => {
         // If we are in the middle of a commmand call, or it hasn't been at least 10 seconds, we don't want to poll.
@@ -652,6 +704,16 @@ export class MultiServiceAccessory {
         this.log.debug(`${this.name} still waiting...`);
       }, 250);
     });
+  }
+
+  public getRegisteredCapabilities(): string[] {
+    const caps = new Set<string>();
+    for (const service of this.services) {
+      for (const cap of service.capabilities) {
+        caps.add(cap);
+      }
+    }
+    return [...caps];
   }
 
   public processEvent(event: ShortEvent): void {
