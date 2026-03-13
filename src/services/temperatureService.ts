@@ -13,11 +13,11 @@ export class TemperatureService extends SensorService {
     super(platform, accessory, componentId, capabilities, multiServiceAccessory, name, deviceStatus);
 
     // VERIFICATION: This log confirms the modified code is running
-    this.log.info(`🔧 MODIFIED CODE v1.0.39 - TemperatureService initialized for ${this.name} (${componentId})`);
+    this.log.info(`🔧 MODIFIED CODE v1.0.47 (Build 12:00 PM) - TemperatureService initialized for ${this.name} (${componentId})`);
 
     // Check if this component is disabled (check might not have been available during service creation)
     if (multiServiceAccessory.isComponentDisabled(componentId)) {
-      this.log.info(`⚠️ Temperature sensor for ${this.name} component "${componentId}" is disabled in SmartThings - service will not function properly`);
+      this.log.debug(`Temperature sensor for ${this.name} component "${componentId}" is disabled in SmartThings`);
       // Note: We can't remove the service here as it's already being created, but we'll log it
       // The service will fail to get temperature values and use defaults
     }
@@ -29,8 +29,8 @@ export class TemperatureService extends SensorService {
     this.initService(platform.Service.TemperatureSensor, platform.Characteristic.CurrentTemperature, (status) => {
       // Check if this component is disabled - if so, don't try to get temperature
       if (this.multiServiceAccessory.isComponentDisabled(componentId)) {
-        this.log.debug(`Component ${componentId} is disabled - temperature sensor will return default value`);
-        throw ('Bad Value'); // This will trigger the default value return
+        this.log.debug(`Component ${componentId} is disabled - returning -273.15 failure value`);
+        return -273.15;
       }
 
       // First, try standard temperatureMeasurement capability

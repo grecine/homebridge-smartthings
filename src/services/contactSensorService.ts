@@ -13,9 +13,16 @@ export class ContactSensorService extends SensorService {
 
     this.log.debug(`Adding ContactService to ${this.name}`);
     this.initService(platform.Service.ContactSensor, platform.Characteristic.ContactSensorState, (status) => {
+      // Check for disabled component
+      if (this.multiServiceAccessory.isComponentDisabled(componentId)) {
+        this.log.info(`Component ${componentId} is disabled - removing ContactSensor service.`);
+        this.accessory.removeService(this.service);
+        return this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
+      }
+
       if (status.contactSensor.contact.value === null || status.contactSensor.contact.value === undefined) {
-        this.log.warn(`${this.name} returned bad value for status`);
-        throw('Bad Value');
+        // Return CONTACT_DETECTED (Closed) as safe default instead of throwing
+        return this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
       }
       return status.contactSensor.contact.value === 'closed' ?
         this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED :
