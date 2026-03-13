@@ -2,11 +2,7 @@
   "private": false,
   "displayName": "Homebridge Smartthings oAuth Plugin",
   "name": "homebridge-smartthings-oauth",
-<<<<<<< HEAD
-  "version": "1.0.47",
-=======
   "version": "1.0.48",
->>>>>>> master
   "description": "Connects SmartThings devices to Homebridge.  Automatically discovers devices.",
   "license": "Apache-2.0",
   "repository": {
@@ -54,7 +50,6 @@
     "ts-node": "^10.3.0",
     "typescript": "^5.0.0"
   },
-<<<<<<< HEAD
   "funding": [
     {
       "type": "paypal",
@@ -66,10 +61,3 @@
     }
   ]
 }
-=======
-  "funding": {
-    "type": "ko-fi",
-    "url": "https://ko-fi.com/aziz66"
-  }
-}
->>>>>>> master
