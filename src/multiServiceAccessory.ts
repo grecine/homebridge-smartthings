@@ -106,6 +106,7 @@ export class MultiServiceAccessory {
         'custom.filterState',
         'airQualitySensor',
         'dustSensor',
+        'veryFineDustSensor',
         'odorSensor',
         'relativeHumidityMeasurement',
       ],
@@ -146,6 +147,15 @@ export class MultiServiceAccessory {
       // There is a heater out there that just supports thermostatMode and thermostatHeatingSetpoint
       capabilities: ['temperatureMeasurement',
         'thermostatHeatingSetpoint'],
+      service: ThermostatService,
+    },
+    {
+      // Thermostats using a single temperatureSetpoint (e.g. Koolnova HVAC)
+      // instead of separate heating/cooling setpoints
+      capabilities: ['temperatureMeasurement',
+        'thermostatMode',
+        'temperatureSetpoint'],
+      optionalCapabilities: ['switch'],
       service: ThermostatService,
     },
     {

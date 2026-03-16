@@ -1,6 +1,28 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.50] - Air Purifier Command Debounce & Sensor Fixes
+
+### Fixed
+- **Air Purifier double beeps**: Switching to Manual mode in HomeKit previously sent two SmartThings commands simultaneously (one from the mode selector, one from the rotation speed slider), causing the purifier to beep 2-3 times. Mode and speed commands are now debounced — when switching to Manual, the plugin waits 500ms for a rotation speed update before sending any command, ensuring only a single `setFanMode` is sent.
+- **Air quality event overwriting PM2.5-based value**: Real-time `airQualitySensor` webhook events would overwrite the accurate PM2.5-derived air quality with the unreliable SmartThings value (which often returns 1/"Excellent" regardless of actual conditions). The event handler now skips `airQualitySensor` events when `dustSensor` is available, matching the polling logic introduced in v1.0.48.
+
+### Added
+- **`veryFineDustSensor` optional capability**: Samsung air purifiers that report `veryFineDustSensor` (PM1.0) now have this capability consumed by the AirPurifierService, preventing it from being left unmatched during service registration.
+
+## [1.0.49] - Generic Thermostat Support (temperatureSetpoint)
+
+### Added
+- **Generic thermostat support**: Devices using the `temperatureSetpoint` capability (single unified setpoint) are now recognized as thermostats in HomeKit. Previously these devices appeared as a simple switch + temperature sensor. This supports third-party HVAC systems like Koolnova that integrate with SmartThings using `temperatureSetpoint` instead of the standard `thermostatHeatingSetpoint`/`thermostatCoolingSetpoint` split.
+  - View current temperature
+  - Set target temperature
+  - Thermostat mode control (heat/cool/off)
+  - Real-time webhook updates for `temperatureSetpoint` events
+- **Custom thermostat mode handling**: Non-standard thermostat modes (e.g. `radiatingfloor`, `radiatingfloorandhotair`) are now mapped to HEAT in HomeKit instead of being treated as OFF. This ensures active heating modes from third-party systems display correctly.
+
+### Note
+- Users with affected devices (previously showing as switch) will need to remove the cached accessory from Homebridge and restart to allow it to re-discover as a thermostat. This can be done from the Homebridge UI under Accessories > Remove Single Cached Accessory.
+
 ## [1.0.48] - Air Quality Sensor Fix
 
 ### Fixed
