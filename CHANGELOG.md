@@ -1,6 +1,39 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.55] - Air Purifier Double-Beep Fix on Mode Switch
+
+### Fixed
+- **Air Purifier double-beep when switching Auto↔Manual** (#24): When switching between Auto and Manual modes, HomeKit sends `setActive(1)` alongside mode/speed changes even when the device is already on. The fan mode debounce correctly collapses mode and speed into one command, but `setActive(1)` was sent immediately as a redundant `switch on` — causing the Samsung purifier to beep once for the no-op switch command and once for the actual mode change. The plugin now checks the cached device status before sending `switch on`; if the device is already on, the redundant command is skipped. Turning off always sends immediately, and turning on from off works normally.
+
+## [1.0.54] - Fix Thermostat Custom Mode Commands (HTTP 422)
+
+### Fixed
+- **Custom thermostat modes fail with HTTP 422** (#25): Custom modes like `radiatingfloor` configured via `thermostatModeOverrides` were sent as direct command names (e.g. `{"command":"radiatingfloor"}`), which SmartThings rejects. Now uses the canonical `setThermostatMode` command with the mode as an argument (`{"command":"setThermostatMode","arguments":["radiatingfloor"]}`), which works for both standard and custom modes.
+
+## [1.0.53] - Configurable Thermostat Mode Mapping
+
+### Added
+- **Thermostat Mode Overrides** (#25): New `thermostatModeOverrides` config option to control which SmartThings thermostatMode is sent when HomeKit requests HEAT or COOL. This lets users with non-standard HVAC systems (e.g. Koolnova with `radiatingfloor`, `radiatingfloorandhotair`) choose which mode maps to HomeKit HEAT/COOL on a per-device basis. Devices without overrides continue to use the defaults (`heat`/`cool`).
+  - Configure per device by name (case-insensitive matching)
+  - Available in the Homebridge UI under "Thermostat Mode Overrides"
+  - Only affects the SET direction (HomeKit → SmartThings); GET direction already handles custom modes correctly
+
+## [1.0.52] - Generic Thermostat Switch-Based Power State Fix
+
+### Fixed
+- **Thermostat showing active when zone is off** (#25): For third-party thermostats (e.g. Koolnova) that expose both `switch` and `thermostatMode`, the plugin now checks `switch` first to determine the real power state. These devices keep `thermostatMode` at its last value (e.g. `heat`) even when the zone is powered off via `switch`. Previously this caused all zones to appear as active/heating in HomeKit regardless of actual state.
+- **Atomic switch + mode commands**: Setting thermostat state from HomeKit now bundles `switch` and `thermostatMode` into a single SmartThings API call (matching the AirConditionerService pattern), avoiding race conditions from separate fire-and-forget calls.
+- **Real-time temperature events**: Incoming `temperature` webhook events are now correctly handled by ThermostatService. Previously, temperature events would fall through to the thermostatMode handler and incorrectly set the heating/cooling state to HEAT.
+- **Real-time switch events**: Incoming `switch: off` webhook events for thermostat devices now immediately update both current and target state to OFF in HomeKit.
+- **isOnline() method call**: Fixed `isOnline` being checked as a property (always truthy) instead of called as a method, so the offline guard in `setTargetHeatingCoolingState` now works correctly.
+
+## [1.0.51] - Air Purifier Command Debounce Improvements & Offline Log Spam Fix
+
+### Fixed
+- **Air Purifier double/triple beeps (improved)**: v1.0.50 debounce only handled the Manual direction. Switching between Auto and Manual still caused 2 beeps because HomeKit sends `setTargetAirPurifierState` and `setRotationSpeed` near-simultaneously in both directions. All fan mode commands now go through a unified debounce with order-independent priority resolution (Auto > RotationSpeed > Manual default), ensuring only a single `setFanMode` command is sent regardless of callback ordering.
+- **Offline device log spam** (#26): When a device is offline (e.g. washer in standby), every HomeKit characteristic query logged `"<device> is offline"` at info level. With multiple services and short poll intervals, this produced 10+ messages per cycle. Changed to debug level and added missing `return` to avoid unnecessary API calls to SmartThings for known-offline devices.
+
 ## [1.0.50] - Air Purifier Command Debounce & Sensor Fixes
 
 ### Fixed
