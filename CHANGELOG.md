@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.56] - 401 Token Refresh Race Fix & Washer Poll Rate
+
+### Fixed
+- **Persistent 401 errors when multiple devices poll simultaneously** (#28): When the access token expired, multiple devices polling at the same time each independently attempted to refresh the token. This race condition could corrupt the refresh token state (especially with rotating refresh tokens), causing a permanent 401 loop with no recovery. The 401 interceptor now uses a dedup lock — the first 401 triggers a single token refresh, and all concurrent 401s wait for that result instead of racing.
+- **Auth flow log spam on persistent token failure**: When tokens are permanently invalid (e.g. expired refresh token), `startAuthFlow()` was called on every failed poll cycle, flooding the logs. It is now rate-limited to 3 rapid calls, then once per 10 minutes.
+- **Washer/dryer polling too aggressive**: The washer service was using the sensor polling interval (`PollSensorsSeconds`, default 5s) instead of the switch/light interval (`PollSwitchesAndLightsSeconds`, default 10s). Washers and dryers change state infrequently, and the aggressive polling contributed to hitting SmartThings API rate limits.
+
 ## [1.0.55] - Air Purifier Double-Beep Fix on Mode Switch
 
 ### Fixed

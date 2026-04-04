@@ -35,16 +35,16 @@ export class WasherService extends BaseService {
       .setProps({ maxValue: 14400 })
       .onGet(this.getRemainingDuration.bind(this));
 
-    // Poll using sensor interval
-    let pollSensorsSeconds = 10;
-    if (this.platform.config.PollSensorsSeconds !== undefined) {
-      pollSensorsSeconds = this.platform.config.PollSensorsSeconds;
+    // Poll using switch/light interval (appliances change state infrequently)
+    let pollSeconds = 10;
+    if (this.platform.config.PollSwitchesAndLightsSeconds !== undefined) {
+      pollSeconds = this.platform.config.PollSwitchesAndLightsSeconds;
     }
 
-    if (pollSensorsSeconds > 0) {
-      multiServiceAccessory.startPollingState(pollSensorsSeconds, this.getActive.bind(this), this.service,
+    if (pollSeconds > 0) {
+      multiServiceAccessory.startPollingState(pollSeconds, this.getActive.bind(this), this.service,
         platform.Characteristic.Active);
-      multiServiceAccessory.startPollingState(pollSensorsSeconds, this.getInUse.bind(this), this.service,
+      multiServiceAccessory.startPollingState(pollSeconds, this.getInUse.bind(this), this.service,
         platform.Characteristic.InUse);
     }
   }
