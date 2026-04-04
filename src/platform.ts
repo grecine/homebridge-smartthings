@@ -40,6 +40,10 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
     headers: this.headerDict,
   });
 
+  private refreshTokenPromise: Promise<void> | null = null;
+  private authFlowRetries = 0;
+  private lastAuthFlowTime = 0;
+
   private accessoryObjects: MultiServiceAccessory[] = [];
   private artModeServices: ArtModeSwitchService[] = [];
   private subscriptionHandler: SubscriptionHandler | undefined = undefined;
@@ -80,7 +84,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       return config;
     });
 
-    // Add response interceptor to handle 401 errors
+    // Add response interceptor to handle 401 errors with dedup refresh lock
     this.axInstance.interceptors.response.use(
       (response) => response,
       async (error) => {
@@ -90,33 +94,55 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
 
-          try {
-            // Get the current refresh token
-            const refreshToken = this.auth.tokenManager.getRefreshToken();
-            if (!refreshToken) {
-              this.log.error('Cannot refresh token: No refresh token available.');
-              this.auth.startAuthFlow(); // Start auth flow if no refresh token
-              return Promise.reject(new Error('No refresh token available for automatic refresh.'));
+          // If a refresh is already in progress, wait for it instead of starting another
+          if (this.refreshTokenPromise) {
+            try {
+              await this.refreshTokenPromise;
+            } catch {
+              return Promise.reject(error);
             }
-
-            // Attempt to refresh the token using the specific token
-            const newTokenData = await this.auth.refreshTokens(refreshToken);
-            await this.auth.tokenManager.updateTokens(newTokenData);
-
-            // Update the Authorization header with the new token
+            // Retry with the new token from the completed refresh
             const newToken = this.auth.getAccessToken();
             if (newToken) {
               if (!originalRequest.headers) {
                 originalRequest.headers = new AxiosHeaders();
               }
               originalRequest.headers.Authorization = `Bearer ${newToken}`;
-              // Retry the original request with the new token
+              return this.axInstance(originalRequest);
+            }
+            return Promise.reject(error);
+          }
+
+          // First 401 — initiate the refresh
+          this.refreshTokenPromise = (async () => {
+            const refreshToken = this.auth.tokenManager.getRefreshToken();
+            if (!refreshToken) {
+              this.log.error('Cannot refresh token: No refresh token available.');
+              this.triggerAuthFlow();
+              throw new Error('No refresh token available for automatic refresh.');
+            }
+            const newTokenData = await this.auth.refreshTokens(refreshToken);
+            await this.auth.tokenManager.updateTokens(newTokenData);
+          })();
+
+          try {
+            await this.refreshTokenPromise;
+            this.refreshTokenPromise = null;
+            // Reset auth retry counter on successful refresh
+            this.authFlowRetries = 0;
+
+            const newToken = this.auth.getAccessToken();
+            if (newToken) {
+              if (!originalRequest.headers) {
+                originalRequest.headers = new AxiosHeaders();
+              }
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
               return this.axInstance(originalRequest);
             }
           } catch (refreshError) {
+            this.refreshTokenPromise = null;
             this.log.error('Token refresh failed:', refreshError);
-            // Start new auth flow if refresh fails
-            this.auth.startAuthFlow();
+            this.triggerAuthFlow();
             return Promise.reject(refreshError);
           }
         }
@@ -222,6 +248,26 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
 
     // add the restored accessory to the accessories cache so we can track if it has already been registered
     this.accessories.push(accessory);
+  }
+
+  /**
+   * Rate-limited wrapper for startAuthFlow to avoid spamming auth messages on every 401.
+   * Allows 3 rapid calls, then backs off to once per 10 minutes.
+   */
+  private triggerAuthFlow(): void {
+    const now = Date.now();
+    if (this.authFlowRetries < 3) {
+      this.authFlowRetries++;
+      this.lastAuthFlowTime = now;
+      this.auth.startAuthFlow();
+    } else if (now - this.lastAuthFlowTime > 10 * 60 * 1000) {
+      // Reset counter for the new 10-minute window
+      this.authFlowRetries = 1;
+      this.lastAuthFlowTime = now;
+      this.auth.startAuthFlow();
+    } else {
+      this.log.warn('Auth flow retry limit reached. Check logs for re-authentication instructions.');
+    }
   }
 
   getLocationsToIgnore(): Promise<boolean> {
