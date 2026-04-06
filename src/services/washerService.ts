@@ -1,4 +1,4 @@
-import { PlatformAccessory, CharacteristicValue } from 'homebridge';
+import { PlatformAccessory, CharacteristicValue, Service } from 'homebridge';
 import { IKHomeBridgeHomebridgePlatform } from '../platform';
 import { BaseService } from './baseService';
 import { MultiServiceAccessory } from '../multiServiceAccessory';
@@ -8,6 +8,7 @@ export class WasherService extends BaseService {
 
   private cachedCompletionTime: string | null = null;
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
+  private contactSensorService: Service | undefined;
 
   constructor(platform: IKHomeBridgeHomebridgePlatform, accessory: PlatformAccessory, componentId: string, capabilities: string[],
     multiServiceAccessory: MultiServiceAccessory,
@@ -47,6 +48,21 @@ export class WasherService extends BaseService {
       multiServiceAccessory.startPollingState(pollSeconds, this.getInUse.bind(this), this.service,
         platform.Characteristic.InUse);
     }
+
+    // Optional Contact Sensor for Activity Notifications
+    if (this.platform.config.ExposeContactSensorForWashers) {
+      const contactSubtype = 'washer-contact-sensor';
+      this.contactSensorService = this.accessory.getService(contactSubtype) ||
+        this.accessory.addService(platform.Service.ContactSensor, `${this.name} Activity`, contactSubtype);
+
+      this.contactSensorService.getCharacteristic(platform.Characteristic.ContactSensorState)
+        .onGet(this.getContactSensorState.bind(this));
+
+      if (pollSeconds > 0) {
+        multiServiceAccessory.startPollingState(pollSeconds, this.getContactSensorState.bind(this),
+          this.contactSensorService, platform.Characteristic.ContactSensorState);
+      }
+    }
   }
 
   // No-op setter for Active (Valve requires it; washer is read-only)
@@ -84,6 +100,24 @@ export class WasherService extends BaseService {
           const jobState = this.deviceStatus.status.washerOperatingState.washerJobState.value;
           this.log.debug(`Washer jobState for ${this.name}: ${jobState}`);
           resolve(this.jobStateToInUse(jobState));
+        } catch (error) {
+          this.log.error(`Missing washerOperatingState.washerJobState from ${this.name}`);
+          reject(new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE));
+        }
+      });
+    });
+  }
+
+  async getContactSensorState(): Promise<CharacteristicValue> {
+    return new Promise((resolve, reject) => {
+      this.getStatus().then(success => {
+        if (!success) {
+          reject(new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE));
+          return;
+        }
+        try {
+          const jobState = this.deviceStatus.status.washerOperatingState.washerJobState.value;
+          resolve(this.jobStateToContactSensor(jobState));
         } catch (error) {
           this.log.error(`Missing washerOperatingState.washerJobState from ${this.name}`);
           reject(new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE));
@@ -140,6 +174,13 @@ export class WasherService extends BaseService {
     default:
       return this.platform.Characteristic.InUse.NOT_IN_USE;
     }
+  }
+
+  private jobStateToContactSensor(jobState: string): number {
+    const inUse = this.jobStateToInUse(jobState);
+    return inUse === this.platform.Characteristic.InUse.IN_USE
+      ? this.platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
+      : this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
   }
 
   private tryRemainingTimeFallback(): void {
@@ -203,10 +244,18 @@ export class WasherService extends BaseService {
           this.cachedCompletionTime = null;
           this.stopCountdownTimer();
           this.service.updateCharacteristic(this.platform.Characteristic.RemainingDuration, 0);
+          this.contactSensorService?.updateCharacteristic(
+            this.platform.Characteristic.ContactSensorState,
+            this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED,
+          );
         }
       } else if (event.attribute === 'washerJobState') {
         this.log.debug(`Event updating washer jobState for ${this.name} to ${event.value}`);
         this.service.updateCharacteristic(this.platform.Characteristic.InUse, this.jobStateToInUse(event.value));
+        this.contactSensorService?.updateCharacteristic(
+          this.platform.Characteristic.ContactSensorState,
+          this.jobStateToContactSensor(event.value),
+        );
       } else if (event.attribute === 'completionTime') {
         // completionTime is an attribute of washerOperatingState
         this.log.debug(`Event updating washer completionTime for ${this.name} to ${event.value}`);
