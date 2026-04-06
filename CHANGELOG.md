@@ -1,10 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [1.0.57] - Washer Activity Notifications via Contact Sensor
+## [1.0.57] - Washer Activity Notifications via Contact Sensor & onGet Performance Fix
 
 ### Added
 - **Optional Contact Sensor for Washer Activity Notifications** (#29): HomeKit's Valve service (used by the washer) does not support Activity Notifications — only locks and sensors do. When the new `ExposeContactSensorForWashers` toggle is enabled in plugin settings, a Contact Sensor is added as a secondary service alongside the existing Valve on washer accessories. The sensor opens when a wash cycle is active (wash, rinse, spin, weightSensing, wrinklePrevent, drying) and closes when the cycle finishes or the machine stops. This allows users to enable Activity Notifications in Apple Home and receive push notifications when their washer starts and finishes a cycle.
+
+### Fixed
+- **"Slow to respond" Homebridge warning on characteristic reads**: All `onGet` handlers (e.g., switch state, lock state, sensor values) were blocking on a synchronous SmartThings API call whenever the 5-second status cache expired, causing Homebridge to flag the plugin as slow. Handlers now return cached device state immediately and trigger a background refresh when stale. Polling and webhook events continue to push fresh values via `updateCharacteristic()` as before. Only the very first read at startup blocks on the API call to populate initial state.
 
 ## [1.0.56] - 401 Token Refresh Race Fix & Washer Poll Rate
 

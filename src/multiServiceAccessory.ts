@@ -195,6 +195,7 @@ export class MultiServiceAccessory {
 
   protected statusQueryInProgress = false;
   protected lastStatusResult = true;
+  protected hasInitialStatus = false;
 
   // Add a field for CrashLoopManager
   private crashLoopManager: CrashLoopManager;
@@ -539,6 +540,7 @@ export class MultiServiceAccessory {
             // Notify TelevisionService about global status update for input source monitoring
             this.notifyTelevisionServiceOfStatusUpdate();
 
+            this.hasInitialStatus = true;
             this.statusQueryInProgress = false;
             resolve(true);
             // if (res.data.components.main !== undefined) {
@@ -575,6 +577,10 @@ export class MultiServiceAccessory {
 
   public forceNextStatusRefresh() {
     this.deviceStatusTimestamp = 0;
+  }
+
+  public hasCachedStatus(): boolean {
+    return this.hasInitialStatus;
   }
 
   /**
