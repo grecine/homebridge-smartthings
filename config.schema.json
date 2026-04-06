@@ -125,6 +125,12 @@
         "required": false,
         "default": true
       },
+      "ExposeContactSensorForWashers": {
+        "title": "Expose Contact Sensor for Washers (enables Activity Notifications)",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      },
       "OptionalModeForAirConditioners": {
         "title": "Select what optional mode to use as additional switch in air conditioners.",
         "type": "string",

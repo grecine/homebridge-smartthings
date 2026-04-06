@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.57] - Washer Activity Notifications via Contact Sensor
+
+### Added
+- **Optional Contact Sensor for Washer Activity Notifications** (#29): HomeKit's Valve service (used by the washer) does not support Activity Notifications — only locks and sensors do. When the new `ExposeContactSensorForWashers` toggle is enabled in plugin settings, a Contact Sensor is added as a secondary service alongside the existing Valve on washer accessories. The sensor opens when a wash cycle is active (wash, rinse, spin, weightSensing, wrinklePrevent, drying) and closes when the cycle finishes or the machine stops. This allows users to enable Activity Notifications in Apple Home and receive push notifications when their washer starts and finishes a cycle.
+
 ## [1.0.56] - 401 Token Refresh Race Fix & Washer Poll Rate
 
 ### Fixed
