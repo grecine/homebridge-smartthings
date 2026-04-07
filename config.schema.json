@@ -130,6 +130,18 @@
         "required": false,
         "default": false
       },
+      "ExposeContactSensorForDryers": {
+        "title": "Expose Contact Sensor for Dryers (enables Activity Notifications)",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      },
+      "ExposeContactSensorForDishwashers": {
+        "title": "Expose Contact Sensor for Dishwashers (enables Activity Notifications)",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      },
       "OptionalModeForAirConditioners": {
         "title": "Select what optional mode to use as additional switch in air conditioners.",
         "type": "string",

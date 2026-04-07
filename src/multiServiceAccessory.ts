@@ -29,6 +29,8 @@ import { ACLightingService } from './services/acLightingService';
 import { TelevisionService } from './services/televisionService';
 import { VolumeSliderService } from './services/volumeSliderService';
 import { WasherService } from './services/washerService';
+import { DryerService } from './services/dryerService';
+import { DishwasherService } from './services/dishwasherService';
 import { AirPurifierService } from './services/airPurifierService';
 import { Command } from './services/smartThingsCommand';
 import { CrashLoopManager, CrashErrorType } from './auth/CrashLoopManager';
@@ -170,6 +172,16 @@ export class MultiServiceAccessory {
       capabilities: ['washerOperatingState'],
       optionalCapabilities: ['washerMode', 'remoteControlStatus'],
       service: WasherService,
+    },
+    {
+      capabilities: ['dryerOperatingState'],
+      optionalCapabilities: ['dryerMode', 'remoteControlStatus'],
+      service: DryerService,
+    },
+    {
+      capabilities: ['dishwasherOperatingState'],
+      optionalCapabilities: ['dishwasherMode', 'remoteControlStatus'],
+      service: DishwasherService,
     },
   ];
 

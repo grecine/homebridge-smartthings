@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.58] - Dryer & Dishwasher Support with Activity Notifications
+
+### Added
+- **Dryer Service** (#29): Devices with the `dryerOperatingState` SmartThings capability are now properly detected and exposed as Valve accessories in HomeKit with Active/InUse status and a remaining duration countdown. Active dryer job states: cooling, drying, refreshing, weightSensing, wrinklePrevent, dehumidifying, aiDrying, sanitizing, internalCare.
+- **Dishwasher Service** (#29): Devices with the `dishwasherOperatingState` SmartThings capability are now properly detected and exposed as Valve accessories in HomeKit with Active/InUse status and a remaining duration countdown. Active dishwasher job states: airwash, cooling, drying, preDrain, prewash, rinse, spin, wash, wrinklePrevent.
+- **Optional Contact Sensor for Dryers and Dishwashers**: New `ExposeContactSensorForDryers` and `ExposeContactSensorForDishwashers` config toggles enable Activity Notifications in Apple Home for dryers and dishwashers, using the same Contact Sensor workaround as the washer.
+
 ## [1.0.57] - Washer Activity Notifications via Contact Sensor & onGet Performance Fix
 
 ### Added
