@@ -86,7 +86,7 @@ echo ""
 
 # ── Step 6: Install inside Docker container ───────────────────────────────────
 echo -e "${YELLOW}🐳 Installing inside Docker container '${CONTAINER_NAME}'...${NC}"
-ssh ${REMOTE_HOST} "cd ${REMOTE_DIR} && docker exec -it ${CONTAINER_NAME} npm install ${TGZ_FILE}"
+ssh ${REMOTE_HOST} "cd ${REMOTE_DIR} && docker exec ${CONTAINER_NAME} npm install ${TGZ_FILE}"
 echo -e "${GREEN}✓ Installed${NC}"
 echo ""
 
