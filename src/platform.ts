@@ -13,6 +13,7 @@ import { WebhookServer } from './webhook/webhookServer';
 import { SmartThingsSubscriptionManager } from './webhook/smartthingsSubscriptionManager';
 import { CrashLoopManager, CrashErrorType, defaultCrashLoopConfig } from './auth/CrashLoopManager';
 import { ArtModeSwitchService } from './services/artModeSwitchService';
+import { TelevisionService } from './services/televisionService';
 
 /**
  * HomebridgePlatform
@@ -47,6 +48,11 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
   private accessoryObjects: MultiServiceAccessory[] = [];
   private artModeServices: ArtModeSwitchService[] = [];
   private subscriptionHandler: SubscriptionHandler | undefined = undefined;
+
+  // UUIDs of TV devices published as external accessories during the current launch.
+  // Used by unregisterDevices() to skip TVs whose bridged cache entries were just
+  // unregistered as part of the bridged → external migration (issue #31).
+  private externalTvUuids: Set<string> = new Set();
 
   constructor(
     public readonly log: Logger,
@@ -419,6 +425,11 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         if (accessory.context.device?.deviceId?.endsWith('-artmode')) {
           return;
         }
+        // Don't re-unregister TVs that were just migrated to external accessories
+        // in discoverDevices() — their bridged cache entry is already gone.
+        if (this.externalTvUuids.has(accessory.UUID)) {
+          return;
+        }
         this.log.info('Will unregister ' + accessory.context.device.label);
         accessoriesToRemove.push(accessory);
       }
@@ -435,56 +446,70 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
    * must not be registered again to prevent "duplicate UUID" errors.
    */
   discoverDevices(devices) {
-
-    //
-    //  for now, unregister all accessories first
-    // REMOVE ME
-    // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, this.accessories);
+    const externalAccessories: PlatformAccessory[] = [];
+    this.externalTvUuids = new Set();
 
     devices.forEach((device) => {
 
       this.log.debug('DEVICE DATA: ' + JSON.stringify(device));
 
-      if (this.findSupportedCapability(device)) {
-        const existingAccessory = this.accessories.find(accessory => accessory.UUID === device.deviceId);
+      if (!this.findSupportedCapability(device)) {
+        return;
+      }
+
+      const isTv = TelevisionService.isTelevisionDevice(device)
+        && this.config.enableTelevisionService !== false;
+      const existingAccessory = this.accessories.find(accessory => accessory.UUID === device.deviceId);
+
+      if (isTv) {
+        // TVs must be published as external accessories so HomeKit advertises
+        // ci=TELEVISION via Bonjour and renders the proper TV tile + Control
+        // Center remote. Bridged accessories share the bridge's category, which
+        // is why they fall back to the generic icon (issue #31).
+        this.externalTvUuids.add(device.deviceId);
 
         if (existingAccessory) {
-          // the accessory already exists
-          this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-
-          // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
-          // existingAccessory.context.device = device;
-          // this.api.updatePlatformAccessories([existingAccessory]);
-
-          // create the accessory handler for the restored accessory
-          // this is imported from `platformAccessory.ts`
-          this.accessoryObjects.push(this.createAccessoryObject(device, existingAccessory));
-
-          // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, eg.:
-          // remove platform accessories when no longer present
-          // this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
-          // this.log.info('Removing existing accessory from cache:', existingAccessory.displayName);
+          this.log.info(
+            `Migrating ${device.label} from bridged to external accessory for proper TV icon. ` +
+            'To re-add it: open Apple Home app → + → Add Accessory → More options → ' +
+            'select the TV from nearby accessories → enter your bridge PIN ' +
+            '(or child-bridge PIN if the plugin runs in a child bridge).',
+          );
+          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
         } else {
-          // the accessory does not yet exist, so we need to create it
-          this.log.info('Registering new accessory: ' + device.label);
-
-          // create a new accessory
-          const accessory = new this.api.platformAccessory(device.label, device.deviceId);
-
-          // store a copy of the device object in the `accessory.context`
-          // the `context` property can be used to store any data about the accessory you may need
-          accessory.context.device = device;
-
-          // create the accessory handler for the newly create accessory
-          // this is imported from `platformAccessory.ts`
-
-          this.accessoryObjects.push(this.createAccessoryObject(device, accessory));
-
-          // link the accessory to your platform
-          this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+          this.log.info('Registering new TV accessory: ' + device.label);
+          this.log.info(
+            `To use ${device.label} in Apple Home: open Home app → + → Add Accessory → More options → ` +
+            'select the TV from nearby accessories → enter your bridge PIN ' +
+            '(or child-bridge PIN if the plugin runs in a child bridge).',
+          );
         }
+
+        const accessory = new this.api.platformAccessory(device.label, device.deviceId);
+        accessory.context.device = device;
+        this.accessoryObjects.push(this.createAccessoryObject(device, accessory));
+        externalAccessories.push(accessory);
+        return;
+      }
+
+      if (existingAccessory) {
+        this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
+        this.accessoryObjects.push(this.createAccessoryObject(device, existingAccessory));
+      } else {
+        this.log.info('Registering new accessory: ' + device.label);
+
+        const accessory = new this.api.platformAccessory(device.label, device.deviceId);
+        accessory.context.device = device;
+
+        this.accessoryObjects.push(this.createAccessoryObject(device, accessory));
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
     });
+
+    if (externalAccessories.length > 0) {
+      this.log.info(`Publishing ${externalAccessories.length} TV accessor${externalAccessories.length === 1 ? 'y' : 'ies'} as external`);
+      this.api.publishExternalAccessories(PLUGIN_NAME, externalAccessories);
+    }
   }
 
   findSupportedCapability(device): boolean {

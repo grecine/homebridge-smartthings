@@ -32,6 +32,7 @@ A modern SmartThings plugin for Homebridge that provides seamless integration wi
 - **Device Management**: Automatically removes devices that are no longer in your SmartThings network
 - **OAuth Support**: Secure authentication with automatic token refresh
 - **Easy Setup Wizard**: New UI-based OAuth wizard - no tunnel required!
+- **Security Panel Support**: Arm/disarm SmartThings alarm panels (`securitySystem` capability) from Apple Home, with live alarm-trigger reporting via `alarm`, `panicAlarm`, and `temperatureAlarm` capabilities.
 
 ## Prerequisites
 

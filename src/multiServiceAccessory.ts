@@ -32,6 +32,7 @@ import { WasherService } from './services/washerService';
 import { DryerService } from './services/dryerService';
 import { DishwasherService } from './services/dishwasherService';
 import { AirPurifierService } from './services/airPurifierService';
+import { SecuritySystemService } from './services/securitySystemService';
 import { Command } from './services/smartThingsCommand';
 import { CrashLoopManager, CrashErrorType } from './auth/CrashLoopManager';
 import { SamsungWebSocket } from './local/samsungWebSocket';
@@ -182,6 +183,11 @@ export class MultiServiceAccessory {
       capabilities: ['dishwasherOperatingState'],
       optionalCapabilities: ['dishwasherMode', 'remoteControlStatus'],
       service: DishwasherService,
+    },
+    {
+      capabilities: ['securitySystem'],
+      optionalCapabilities: ['alarm', 'panicAlarm', 'temperatureAlarm'],
+      service: SecuritySystemService,
     },
   ];
 

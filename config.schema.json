@@ -86,6 +86,13 @@
         "required": false,
         "default": 5
       },
+      "PollSecuritySystemsSeconds": {
+        "title": "Poll Security Systems (zero = don't poll)",
+        "type": "integer",
+        "required": false,
+        "default": 15,
+        "description": "How often to poll SmartThings security panels for state changes. Webhook subscriptions provide real-time updates when available; polling is the fallback. Default: 15 seconds."
+      },
       "PollSwitchesAndLightsSeconds": {
         "title": "Poll Switches and Lights (zero = don't poll)",
         "type": "integer",
