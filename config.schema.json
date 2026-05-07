@@ -86,6 +86,13 @@
         "required": false,
         "default": 5
       },
+      "PollSecuritySystemsSeconds": {
+        "title": "Poll Security Systems (zero = don't poll)",
+        "type": "integer",
+        "required": false,
+        "default": 15,
+        "description": "How often to poll SmartThings security panels for state changes. Webhook subscriptions provide real-time updates when available; polling is the fallback. Default: 15 seconds."
+      },
       "PollSwitchesAndLightsSeconds": {
         "title": "Poll Switches and Lights (zero = don't poll)",
         "type": "integer",
@@ -141,6 +148,13 @@
         "type": "boolean",
         "required": false,
         "default": false
+      },
+      "removeLegacySwitchForLaundry": {
+        "title": "Remove Legacy Switch Service for Laundry Devices",
+        "type": "boolean",
+        "required": false,
+        "default": false,
+        "description": "When enabled, suppresses the auto-generated Switch tile on washers, dryers, and dishwashers. The main Valve tile (with Active/InUse and remaining duration) and any optional Contact Sensor for activity notifications are unaffected. Default: off (preserves existing behavior)."
       },
       "OptionalModeForAirConditioners": {
         "title": "Select what optional mode to use as additional switch in air conditioners.",

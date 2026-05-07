@@ -32,6 +32,7 @@ import { WasherService } from './services/washerService';
 import { DryerService } from './services/dryerService';
 import { DishwasherService } from './services/dishwasherService';
 import { AirPurifierService } from './services/airPurifierService';
+import { SecuritySystemService } from './services/securitySystemService';
 import { Command } from './services/smartThingsCommand';
 import { CrashLoopManager, CrashErrorType } from './auth/CrashLoopManager';
 import { SamsungWebSocket } from './local/samsungWebSocket';
@@ -182,6 +183,11 @@ export class MultiServiceAccessory {
       capabilities: ['dishwasherOperatingState'],
       optionalCapabilities: ['dishwasherMode', 'remoteControlStatus'],
       service: DishwasherService,
+    },
+    {
+      capabilities: ['securitySystem'],
+      optionalCapabilities: ['alarm', 'panicAlarm', 'temperatureAlarm'],
+      service: SecuritySystemService,
     },
   ];
 
@@ -456,6 +462,19 @@ export class MultiServiceAccessory {
           entry.service,
         );
       });
+
+    // Suppress the legacy Switch tile on laundry accessories when the user
+    // opts in. Mirrors the removeLegacySwitchForTV pattern above.
+    const removeLaundrySwitch = this.platform.config.removeLegacySwitchForLaundry === true;
+    if (removeLaundrySwitch && capabilitiesToCover.includes('switch')) {
+      const hasLaundryService = this.services.some(s =>
+        s instanceof WasherService || s instanceof DryerService || s instanceof DishwasherService,
+      );
+      if (hasLaundryService) {
+        this.log.debug(`Removing legacy switch service for laundry device: ${this.name}`);
+        capabilitiesToCover = capabilitiesToCover.filter(cap => cap !== 'switch');
+      }
+    }
 
     Object.keys(MultiServiceAccessory.capabilityMap).forEach((capability) => {
       const service = MultiServiceAccessory.capabilityMap[capability];

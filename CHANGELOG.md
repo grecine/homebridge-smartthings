@@ -1,6 +1,27 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.60] - Optional Suppression of Legacy Switch on Laundry Devices
+
+### Added
+- **`removeLegacySwitchForLaundry` config option** (#34): New boolean toggle (default `false`) that suppresses the auto-generated Switch tile on washers, dryers, and dishwashers when these devices expose both an operating-state capability and a `switch` capability in SmartThings. The main Valve tile (Active/InUse + remaining duration) and any optional Contact Sensor for activity notifications are unaffected — only the redundant Switch tile is removed. Mirrors the existing `removeLegacySwitchForTV` pattern. Existing users see no change unless they enable the toggle.
+
+## [1.0.59] - Security Panel Support + Correct TV Icon
+
+### Added
+- **Security System service** (#32): Devices with the SmartThings `securitySystem` capability are now exposed as Security System tiles in Apple Home, with arm/disarm controls (Stay, Away, Night, Off) and live current-state reporting. The plugin reads `supportedSecuritySystemCommands` to constrain which arm modes appear in HomeKit, so panels that don't support a given mode (e.g. no Night arm) won't show it. Webhook subscriptions provide real-time updates; polling is the fallback (configurable via the new `PollSecuritySystemsSeconds` setting, default 15s).
+- **Alarm-trigger reporting**: When a device also exposes the `alarm`, `panicAlarm`, or `temperatureAlarm` capabilities, an active siren, panic button press, or extreme temperature alarm flips the HomeKit `SecuritySystemCurrentState` to "Alarm Triggered" and sets `SecuritySystemAlarmType`. The state clears once all active alarm sources clear.
+- **`PollSecuritySystemsSeconds` config option**: Dedicated polling interval for security panels (default 15s). Configured separately from generic sensor polling because panels typically rate-limit aggressive polling.
+
+### Fixed
+- **Generic icon for Samsung TVs in Apple Home** (#31): TV accessories were registered as bridged accessories, so HomeKit ignored their `Categories.TELEVISION` setting and rendered them with the generic Home placeholder icon (orange house). Even though the Television service worked (inputs, power, remote), HomeKit only advertises a per-accessory category (`ci=TELEVISION` Bonjour TXT) for accessories published as standalone, which is why every working Homebridge TV plugin uses external publishing. TVs are now published via `publishExternalAccessories`, giving them their own HAP server, their own pairing, and the proper TV tile in Home with Control Center remote support.
+
+### Note
+- **Existing TV users must re-add their TV in the Home app** after upgrading. The plugin will automatically unregister the old bridged TV tile on first start. To add the new external TV: open the **Apple Home** app → tap **+** → **Add Accessory** → tap **"More options…"** → the TV appears in the Nearby Accessories list → tap it → when prompted, enter your **bridge PIN** (or **child-bridge PIN** if you run this plugin in a child bridge). The Homebridge UI does not display a per-accessory QR code for external accessories — pairing is initiated from the Home app, not from Homebridge UI. Inputs, volume slider (if enabled), and Frame TV WebSocket settings continue to work as before — input source names are re-fetched from SmartThings on first connect, so the only thing that resets is the HomeKit pairing itself.
+- **Disabling `enableTelevisionService` after upgrading**: If you later set `enableTelevisionService: false` to revert a TV to a bridged switch, the externally-published TV tile will remain in Apple Home as an orphan. Remove it manually from the Home app (long-press the tile → Accessory Settings → Remove Accessory) before the bridged switch will appear cleanly.
+- **Standalone siren/alarm devices** (devices that expose the `alarm` capability but not `securitySystem`) are not yet exposed as HomeKit accessories. If you have such a device and want it controllable from Home, please open an issue and we'll add a follow-up service.
+- **`bypassAll` is hardcoded to `false`** for `armStay`/`armAway` commands. If a sensor is open when you arm, SmartThings will report a not-ready state rather than silently bypassing the zone. Open an issue if you want this configurable.
+
 ## [1.0.58] - Dryer & Dishwasher Support with Activity Notifications
 
 ### Added
