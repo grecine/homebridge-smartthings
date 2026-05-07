@@ -437,6 +437,19 @@ export class MultiServiceAccessory {
         );
       });
 
+    // Suppress the legacy Switch tile on laundry accessories when the user
+    // opts in. Mirrors the removeLegacySwitchForTV pattern above.
+    const removeLaundrySwitch = this.platform.config.removeLegacySwitchForLaundry === true;
+    if (removeLaundrySwitch && capabilitiesToCover.includes('switch')) {
+      const hasLaundryService = this.services.some(s =>
+        s instanceof WasherService || s instanceof DryerService || s instanceof DishwasherService,
+      );
+      if (hasLaundryService) {
+        this.log.debug(`Removing legacy switch service for laundry device: ${this.name}`);
+        capabilitiesToCover = capabilitiesToCover.filter(cap => cap !== 'switch');
+      }
+    }
+
     Object.keys(MultiServiceAccessory.capabilityMap).forEach((capability) => {
       const service = MultiServiceAccessory.capabilityMap[capability];
 

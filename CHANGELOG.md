@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.60] - Optional Suppression of Legacy Switch on Laundry Devices
+
+### Added
+- **`removeLegacySwitchForLaundry` config option** (#34): New boolean toggle (default `false`) that suppresses the auto-generated Switch tile on washers, dryers, and dishwashers when these devices expose both an operating-state capability and a `switch` capability in SmartThings. The main Valve tile (Active/InUse + remaining duration) and any optional Contact Sensor for activity notifications are unaffected — only the redundant Switch tile is removed. Mirrors the existing `removeLegacySwitchForTV` pattern. Existing users see no change unless they enable the toggle.
+
 ## [1.0.59] - Security Panel Support + Correct TV Icon
 
 ### Added
