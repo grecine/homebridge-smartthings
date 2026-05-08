@@ -40,6 +40,11 @@ class UiServer extends HomebridgePluginUiServer {
   }
 
   async authToken(config) {
+    if (!this.client) {
+      const msg = 'OAuth client not initialized. Go back to Step 2 and try again — Homebridge may have restarted between steps.';
+      console.error('[homebridge-smartthings-oauth] /authToken: ' + msg);
+      throw new RequestError(msg);
+    }
     try {
       const tokenParams = {
         code: config.code,
@@ -49,7 +54,23 @@ class UiServer extends HomebridgePluginUiServer {
       const accessToken = await this.client.getToken(tokenParams);
       return accessToken.token;
     } catch (err) {
-      throw new RequestError(err.message);
+      // simple-oauth2 v5 wraps provider errors with Boom. The OAuth2 error code
+      // and description we actually want live in err.data.payload (or err.output.payload).
+      const providerPayload = err.data?.payload || err.output?.payload || null;
+      const oauthError = providerPayload?.error || null;
+      const oauthDesc = providerPayload?.error_description || null;
+      const status = err.output?.statusCode || err.status || null;
+
+      const detail = oauthError
+        ? `${oauthError}${oauthDesc ? ': ' + oauthDesc : ''}`
+        : (err.message || 'Unknown error');
+
+      const fullMsg = status ? `[${status}] ${detail}` : detail;
+      console.error('[homebridge-smartthings-oauth] /authToken failed: ' + fullMsg);
+      if (providerPayload) {
+        console.error('[homebridge-smartthings-oauth] OAuth provider response: ' + JSON.stringify(providerPayload));
+      }
+      throw new RequestError(fullMsg);
     }
   }
 

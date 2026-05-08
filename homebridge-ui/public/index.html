@@ -331,7 +331,11 @@
                     await requestAuthToken();
                 } catch (err) {
                     console.error('requestAuthToken error:', err);
-                    homebridge.toast.error("Could not request authorization token. Please try again.");
+                    const detail = err && (err.message || err.error_description || err.error);
+                    const msg = detail
+                        ? "Token exchange failed: " + detail
+                        : "Could not request authorization token. Please try again.";
+                    homebridge.toast.error(msg, "OAuth Error");
                 } finally {
                     homebridge.hideSpinner();
                 }

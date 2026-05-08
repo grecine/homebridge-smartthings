@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.61-beta.1] - OAuth Wizard Diagnostic Errors
+
+### Fixed
+- **OAuth wizard now surfaces the real token-exchange error** (#36): Step 4 of the wizard previously showed a generic "Could not request authorization token. Please try again." toast for every failure, regardless of root cause. The actual OAuth2 error returned by SmartThings (`invalid_grant`, `redirect_uri_mismatch`, `invalid_client`, `invalid_scope`, `unauthorized_client`, etc.) was discarded by the UI server and never reached the user or the Homebridge log, making remote diagnosis impossible. The wizard now extracts the OAuth2 error code and `error_description` from `simple-oauth2`'s wrapped Boom error (`err.data.payload`/`err.output.payload`), shows them in the toast, and logs the full provider response to the Homebridge log under `[homebridge-smartthings-oauth]`. Also adds an explicit error if `/authToken` is invoked before `/authCode` has initialized the OAuth client (e.g. after a Homebridge restart between wizard steps).
+
 ## [1.0.61-beta.0] - Multi-Component Samsung Refrigerator Support (Beta)
 
 > Pre-release for verification by @grecine and other Samsung Family Hub owners. Will graduate to 1.0.61 stable once confirmed against real hardware.
