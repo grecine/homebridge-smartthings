@@ -33,6 +33,8 @@ import { DryerService } from './services/dryerService';
 import { DishwasherService } from './services/dishwasherService';
 import { AirPurifierService } from './services/airPurifierService';
 import { SecuritySystemService } from './services/securitySystemService';
+import { RefrigeratorTemperatureService } from './services/refrigeratorTemperatureService';
+import { extractDisabledComponents } from './util/samsungRefrigerator';
 import { Command } from './services/smartThingsCommand';
 import { CrashLoopManager, CrashErrorType } from './auth/CrashLoopManager';
 import { SamsungWebSocket } from './local/samsungWebSocket';
@@ -303,6 +305,20 @@ export class MultiServiceAccessory {
     }
   }
 
+  public mainHasCapability(capabilityId: string): boolean {
+    return this.components.find(c => c.componentId === 'main')?.capabilities.includes(capabilityId) ?? false;
+  }
+
+  // Runtime safety net for the disabled-compartments prune in platform.ts.
+  // Returns true only after main's status has been refreshed at least once.
+  public isComponentDisabled(componentId: string): boolean {
+    if (componentId === 'main') {
+      return false;
+    }
+    const mainStatus = this.components.find(c => c.componentId === 'main')?.status;
+    return extractDisabledComponents(mainStatus).includes(componentId);
+  }
+
   private registerServiceIfMatchesCapabilities(
     componentId: string,
     component: any,
@@ -320,8 +336,19 @@ export class MultiServiceAccessory {
 
     const allCapabilities = capabilities.concat(optionalCapabilities.filter(e => capabilitiesToCover.includes(e)));
 
-    this.log.debug(`Creating instance of ${serviceConstructor.name} for capabilities ${allCapabilities}`);
-    const serviceInstance = new serviceConstructor(this.platform, this.accessory, componentId, allCapabilities, this, this.name, component);
+    // Route temperature sensors on Samsung Family Hub fridges to the OCF-aware
+    // subclass so per-compartment readings work (sub-components return null on
+    // standard temperatureMeasurement).
+    let resolvedConstructor = serviceConstructor;
+    if (serviceConstructor === TemperatureService
+        && this.platform.config.ExposeMultiZoneRefrigerator === true
+        && this.mainHasCapability('samsungce.driverState')) {
+      resolvedConstructor = RefrigeratorTemperatureService;
+    }
+
+    this.log.debug(`Creating instance of ${resolvedConstructor.name} for capabilities ${allCapabilities}`);
+    const serviceInstance = new resolvedConstructor(
+      this.platform, this.accessory, componentId, allCapabilities, this, this.name, component);
     this.services.push(serviceInstance);
 
     this.log.debug(`Registered ${serviceConstructor.name} for capabilities ${allCapabilities}`);

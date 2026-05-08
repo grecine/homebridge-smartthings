@@ -33,6 +33,7 @@ A modern SmartThings plugin for Homebridge that provides seamless integration wi
 - **OAuth Support**: Secure authentication with automatic token refresh
 - **Easy Setup Wizard**: New UI-based OAuth wizard - no tunnel required!
 - **Security Panel Support**: Arm/disarm SmartThings alarm panels (`securitySystem` capability) from Apple Home, with live alarm-trigger reporting via `alarm`, `panicAlarm`, and `temperatureAlarm` capabilities.
+- **Samsung Multi-Zone Refrigerator Support**: Per-compartment temperature tiles for Family Hub fridges (Freezer, FlexZone, CVRoom). Disabled compartments are hidden automatically. Opt-in via the `ExposeMultiZoneRefrigerator` setting.
 
 ## Prerequisites
 

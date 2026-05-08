@@ -1,6 +1,20 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.61-beta.0] - Multi-Component Samsung Refrigerator Support (Beta)
+
+> Pre-release for verification by @grecine and other Samsung Family Hub owners. Will graduate to 1.0.61 stable once confirmed against real hardware.
+
+### Added
+- **`ExposeMultiZoneRefrigerator` config option** (#35): New boolean toggle (default `false`) for Samsung Family Hub refrigerators that expose multiple compartments (`main`, `freezer`, `cvroom`, `onedoor`, `flexZone`, etc.). Samsung returns `null` on the standard `temperatureMeasurement` capability for sub-components — the real per-zone readings live in an OCF blob at `main.status.samsungce.driverState`. When enabled, the plugin parses that blob so each compartment reports its own temperature in Apple Home, with friendly labels (e.g. "Freezer", "FlexZone"). Compartments the user has disabled in the SmartThings app (`custom.disabledComponents`) are pruned at discovery so no ghost tiles appear in HomeKit. Standard single-zone refrigerators and non-fridge devices are completely unaffected — the OCF code path is gated behind both the config flag and a `samsungce.driverState` capability probe on the device's main component.
+
+### Credit
+- **Feature contributed by @grecine in PR #35** (tested against Samsung RF29DB9600QLA). This release re-implements the same feature against current code in a dedicated `RefrigeratorTemperatureService` + `samsungRefrigerator` util module, drops behavior changes from the original PR that masked failures on life-safety sensors, and prunes disabled compartments at discovery rather than at every characteristic read. Huge thanks to @grecine for the OCF reverse-engineering and the test fixtures.
+
+### Note
+- **Read-only for now**: Refrigerator setpoint control is not yet exposed; this release covers per-compartment temperature reporting and disabled-compartment pruning. Setpoint commands can be added in a follow-up if requested.
+- **Tested on US-region firmware** (Samsung RF29DB9600QLA). Samsung's OCF driver state reports temperatures in Fahrenheit on the firmware we've verified; metric-region Family Hub devices may report Celsius and would currently display incorrect values — please open an issue with a sample OCF blob if you see wrong readings and we'll add the unit-handling.
+
 ## [1.0.60] - Optional Suppression of Legacy Switch on Laundry Devices
 
 ### Added

@@ -14,6 +14,11 @@ import { SmartThingsSubscriptionManager } from './webhook/smartthingsSubscriptio
 import { CrashLoopManager, CrashErrorType, defaultCrashLoopConfig } from './auth/CrashLoopManager';
 import { ArtModeSwitchService } from './services/artModeSwitchService';
 import { TelevisionService } from './services/televisionService';
+import {
+  extractDisabledComponents,
+  hasDisabledComponentsCapability,
+  hasRefrigeratorOcfDriver,
+} from './util/samsungRefrigerator';
 
 /**
  * HomebridgePlatform
@@ -213,7 +218,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           if (this.config.UnregisterAll) {
             this.unregisterDevices(devices, true);
           }
-          this.discoverDevices(devices);
+          await this.discoverDevices(devices);
           this.unregisterDevices(devices);
 
           // Register Art Mode accessories for configured Frame TVs
@@ -445,16 +450,15 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
    * Accessories must only be registered once, previously created accessories
    * must not be registered again to prevent "duplicate UUID" errors.
    */
-  discoverDevices(devices) {
+  async discoverDevices(devices) {
     const externalAccessories: PlatformAccessory[] = [];
     this.externalTvUuids = new Set();
 
-    devices.forEach((device) => {
-
+    for (const device of devices) {
       this.log.debug('DEVICE DATA: ' + JSON.stringify(device));
 
       if (!this.findSupportedCapability(device)) {
-        return;
+        continue;
       }
 
       const isTv = TelevisionService.isTelevisionDevice(device)
@@ -487,24 +491,24 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
 
         const accessory = new this.api.platformAccessory(device.label, device.deviceId);
         accessory.context.device = device;
-        this.accessoryObjects.push(this.createAccessoryObject(device, accessory));
+        this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
         externalAccessories.push(accessory);
-        return;
+        continue;
       }
 
       if (existingAccessory) {
         this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-        this.accessoryObjects.push(this.createAccessoryObject(device, existingAccessory));
+        this.accessoryObjects.push(await this.createAccessoryObject(device, existingAccessory));
       } else {
         this.log.info('Registering new accessory: ' + device.label);
 
         const accessory = new this.api.platformAccessory(device.label, device.deviceId);
         accessory.context.device = device;
 
-        this.accessoryObjects.push(this.createAccessoryObject(device, accessory));
+        this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
       }
-    });
+    }
 
     if (externalAccessories.length > 0) {
       this.log.info(`Publishing ${externalAccessories.length} TV accessor${externalAccessories.length === 1 ? 'y' : 'ies'} as external`);
@@ -533,18 +537,32 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
     return found;
   }
 
-  createAccessoryObject(device, accessory): MultiServiceAccessory {
-    // const component = device.components.find(c => c.id === 'main');
-
-    // let capabilities;
-    // if (component) {
-    //   capabilities = component.capabilities;
-    // } else {
-    //   capabilities = device.components[0].capabilities;
-    // }
-
+  async createAccessoryObject(device, accessory): Promise<MultiServiceAccessory> {
     const acc = new MultiServiceAccessory(this, accessory);
-    device.components.forEach(component => {
+    let components = device.components;
+
+    // Samsung Family Hub fridges: prefetch status once so we can prune
+    // compartments the user has disabled in the SmartThings app before
+    // creating any HomeKit services for them.
+    if (this.config.ExposeMultiZoneRefrigerator === true
+        && hasRefrigeratorOcfDriver(device)
+        && hasDisabledComponentsCapability(device)) {
+      try {
+        const res = await this.axInstance.get(`devices/${device.deviceId}/status`);
+        const disabled = extractDisabledComponents(res.data?.components?.main);
+        if (disabled.length > 0) {
+          this.log.info(`Refrigerator ${device.label}: skipping disabled compartments [${disabled.join(', ')}]`);
+          components = components.filter(c => c.id === 'main' || !disabled.includes(c.id));
+        }
+      } catch (error) {
+        this.log.warn(
+          `Failed to prefetch status for refrigerator ${device.label}: ${error}. ` +
+          'Disabled compartments may appear as "No Response".',
+        );
+      }
+    }
+
+    components.forEach(component => {
       acc.addComponent(component.id, component.capabilities.map((c) => c.id));
     });
 
