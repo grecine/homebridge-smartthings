@@ -20,6 +20,11 @@ export class RefrigeratorTemperatureService extends TemperatureService {
     // Replace the standard temperatureMeasurement-only lambda with one that
     // falls back to OCF data when the standard capability returns null.
     this.statusTranslation = (status) => {
+      if (this.multiServiceAccessory.isComponentDisabled(this.componentId)) {
+        this.log.info(`${this.name} component "${componentId}" is marked disabled in SmartThings. Allowing auto-removal.`);
+        throw('Bad Value');
+      }
+
       const standardValue = status?.temperatureMeasurement?.temperature?.value;
       const standardUnit = status?.temperatureMeasurement?.temperature?.unit;
 

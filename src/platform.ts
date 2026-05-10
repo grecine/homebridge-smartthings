@@ -545,8 +545,16 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
     // compartments the user has disabled in the SmartThings app before
     // creating any HomeKit services for them.
     if (this.config.ExposeMultiZoneRefrigerator === true
-        && hasRefrigeratorOcfDriver(device)
-        && hasDisabledComponentsCapability(device)) {
+        && hasRefrigeratorOcfDriver(device)) {
+        
+      // Prevent duplicate Fridge Temperature sensors: 'main' and 'cooler' usually mirror the exact same temperature.
+      const mainComp = components.find(c => c.id === 'main');
+      const coolerComp = components.find(c => c.id === 'cooler');
+      if (mainComp && coolerComp && mainComp.capabilities.some(cap => cap.id === 'temperatureMeasurement')) {
+        coolerComp.capabilities = coolerComp.capabilities.filter(cap => cap.id !== 'temperatureMeasurement');
+      }
+
+      if (hasDisabledComponentsCapability(device)) {
       try {
         const res = await this.axInstance.get(`devices/${device.deviceId}/status`);
         const disabled = extractDisabledComponents(res.data?.components?.main);
@@ -559,6 +567,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           `Failed to prefetch status for refrigerator ${device.label}: ${error}. ` +
           'Disabled compartments may appear as "No Response".',
         );
+      }
       }
     }
 

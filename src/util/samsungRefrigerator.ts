@@ -71,6 +71,20 @@ export function extractDisabledComponents(mainStatus: Record<string, unknown> | 
   if (!mainStatus || typeof mainStatus !== 'object') {
     return [];
   }
+
+  // Handle standard SmartThings format: mainStatus["custom.disabledComponents"].disabledComponents.value
+  const cap = mainStatus['custom.disabledComponents'];
+  if (cap && typeof cap === 'object') {
+    const inner = (cap as Record<string, unknown>).disabledComponents;
+    if (inner && typeof inner === 'object') {
+      const value = (inner as Record<string, unknown>).value;
+      if (Array.isArray(value)) {
+        return value.filter((v): v is string => typeof v === 'string');
+      }
+    }
+  }
+
+  // Fallback to legacy/nested format
   const custom = (mainStatus as Record<string, unknown>).custom;
   if (!custom || typeof custom !== 'object') {
     return [];
@@ -116,6 +130,20 @@ function readDriverStateValue(mainStatus: Record<string, unknown> | undefined): 
   if (!mainStatus) {
     return null;
   }
+
+  // Handle standard SmartThings format: mainStatus["samsungce.driverState"].driverState.value
+  const cap = mainStatus['samsungce.driverState'];
+  if (cap && typeof cap === 'object') {
+    const inner = (cap as Record<string, unknown>).driverState;
+    if (inner && typeof inner === 'object') {
+      const value = (inner as Record<string, unknown>).value;
+      if (value !== undefined && value !== null) {
+        return value as OcfDriverStateValue;
+      }
+    }
+  }
+
+  // Fallback to legacy/nested format
   const samsungce = (mainStatus as Record<string, unknown>).samsungce;
   if (!samsungce || typeof samsungce !== 'object') {
     return null;
